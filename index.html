@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Treasure Map 🗺️</title>
+<link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Caveat:wght@500;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+  :root{
+    --parchment: #e9d9b3;
+    --parchment-dark: #d8c191;
+    --parchment-deep: #c9ab73;
+    --ink: #3b2a1a;
+    --ink-soft: #5c4530;
+    --gold: #b8862e;
+    --gold-bright: #d9a23b;
+    --sea: #2e5c6e;
+    --sea-deep: #1c3e4d;
+    --red-x: #a23b2e;
+    --locked: #8a7558;
+  }
+
+  html,body{
+    width:100%;
+    min-height:100%;
+    background: var(--sea-deep);
+    color: var(--ink);
+    font-family:'DM Sans',sans-serif;
+    overflow-x:hidden;
+  }
+
+  /* ═══════ TEXTURE LAYERS ═══════ */
+  .ocean-bg{
+    position:fixed; inset:0; z-index:0;
+    background:
+      radial-gradient(ellipse at 20% 30%, rgba(46,92,110,0.5), transparent 50%),
+      radial-gradient(ellipse at 80% 70%, rgba(28,62,77,0.6), transparent 50%),
+      linear-gradient(160deg, #1c3e4d 0%, #16323f 100%);
+  }
+  .ocean-bg::before{
+    content:'';
+    position:absolute; inset:0;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 22px 22px;
+    opacity:0.5;
+  }
+
+  /* ═══════ MAIN PARCHMENT CONTAINER ═══════ */
+  .map-wrap{
+    position:relative; z-index:1;
+    max-width: 760px;
+    margin: 2.5rem auto;
+    padding: 0 1rem 4rem;
+  }
+
+  .parchment{
+    position:relative;
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(255,250,230,0.35), transparent 55%),
+      radial-gradient(ellipse at 75% 80%, rgba(120,90,40,0.18), transparent 50%),
+      var(--parchment);
+    border-radius: 6px;
+    box-shadow:
+      0 25px 60px rgba(0,0,0,0.5),
+      inset 0 0 0 1px rgba(90,60,20,0.25),
+      inset 0 0 60px rgba(120,80,30,0.15);
+    padding: 2.6rem 1.8rem 3.2rem;
+  }
+  .parchment::before{
+    /* torn/aged edge effect via border */
+    content:'';
+    position:absolute; inset:8px;
+    border: 2px solid rgba(90,60,20,0.18);
+    border-radius:4px;
+    pointer-events:none;
+  }
+
+  /* ═══════ HEADER ═══════ */
+  .map-header{ text-align:center; margin-bottom: 2.2rem; }
+  .map-header .eyebrow{
+    font-family:'Caveat', cursive;
+    font-size:1.3rem;
+    color: var(--gold);
+    transform: rotate(-2deg);
+    display:block;
+    margin-bottom:0.2rem;
+  }
+  .map-header h1{
+    font-family:'Pirata One', serif;
+    font-size: clamp(2.1rem, 7vw, 3.2rem);
+    color: var(--ink);
+    text-shadow: 1px 1px 0 rgba(255,255,255,0.3);
+    letter-spacing: 0.02em;
+    line-height:1.1;
+  }
+  .map-header .sub{
+    margin-top:0.6rem;
+    font-size:0.92rem;
+    color: var(--ink-soft);
+    font-style: italic;
+    max-width: 420px;
+    margin-left:auto; margin-right:auto;
+    line-height:1.6;
+  }
+
+  .compass{
+    width:54px; height:54px;
+    margin: 1.1rem auto 0;
+    opacity:0.75;
+  }
+
+  /* ═══════ TRAIL / PATH ═══════ */
+  .trail-svg{
+    width:100%;
+    height:auto;
+    display:block;
+    margin-top: 1rem;
+    overflow: visible;
+  }
+
+  .node-group{ cursor:pointer; }
+  .node-group.locked{ cursor: not-allowed; }
+
+  .node-circle{
+    transition: transform 0.25s ease, filter 0.25s ease;
+  }
+  .node-group:not(.locked):hover .node-circle{
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 10px rgba(217,162,59,0.7));
+  }
+  .node-group:not(.locked):hover .node-label-bg{
+    filter: drop-shadow(0 0 6px rgba(217,162,59,0.5));
+  }
+
+  .node-pulse{
+    animation: pulse-ring 2.4s ease-out infinite;
+    transform-origin: center;
+  }
+  @keyframes pulse-ring{
+    0%   { r: 26; opacity: 0.55; }
+    100% { r: 42; opacity: 0; }
+  }
+
+  .node-label{
+    font-family:'Caveat', cursive;
+    font-weight:700;
+    font-size: 15px;
+    fill: var(--ink);
+  }
+  .node-label.locked-label{ fill: var(--locked); }
+
+  .node-number{
+    font-family:'DM Sans', sans-serif;
+    font-weight:500;
+    font-size: 9px;
+    fill: var(--parchment);
+  }
+  .node-number.locked-number{ fill: var(--parchment-dark); }
+
+  .node-date{
+    font-family:'DM Sans', sans-serif;
+    font-size: 9px;
+    fill: var(--ink-soft);
+    opacity:0.75;
+  }
+
+  /* ═══════ MODAL (stage content) ═══════ */
+  .modal-overlay{
+    position: fixed; inset:0;
+    background: rgba(10,15,20,0.82);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display:flex; align-items:center; justify-content:center;
+    padding: 1.2rem;
+    opacity:0; pointer-events:none;
+    transition: opacity 0.35s ease;
+  }
+  .modal-overlay.active{ opacity:1; pointer-events:all; }
+
+  .modal-card{
+    background: var(--parchment);
+    border-radius: 10px;
+    max-width: 480px;
+    width:100%;
+    max-height: 88vh;
+    overflow-y:auto;
+    position:relative;
+    box-shadow: 0 30px 70px rgba(0,0,0,0.6);
+    transform: scale(0.85) translateY(30px);
+    transition: transform 0.4s cubic-bezier(.16,1,.3,1);
+  }
+  .modal-overlay.active .modal-card{ transform: scale(1) translateY(0); }
+
+  .modal-close{
+    position:sticky; top:0; left:100%;
+    margin: 0.8rem 0.8rem -2.2rem auto;
+    width:34px; height:34px;
+    border-radius:50%;
+    background: rgba(59,42,26,0.85);
+    color: var(--parchment);
+    border:none;
+    font-size:1.1rem;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    z-index:5;
+    transition: background 0.2s;
+  }
+  .modal-close:hover{ background: var(--red-x); }
+
+  .modal-inner{
+    padding: 0.5rem 2rem 2.6rem;
+    text-align:center;
+  }
+
+  .modal-eyebrow{
+    font-family:'Caveat', cursive;
+    font-size:1.3rem;
+    color: var(--gold);
+    margin-bottom:0.1rem;
+    transform: rotate(-1.5deg);
+  }
+  .modal-title{
+    font-family:'Pirata One', serif;
+    font-size: clamp(1.6rem, 6vw, 2.1rem);
+    color: var(--ink);
+    margin-bottom:1.3rem;
+    line-height:1.2;
+  }
+
+  .modal-photo{
+    width: 168px; height:168px;
+    border-radius:50%;
+    border: 3px solid var(--gold);
+    box-shadow: 0 0 0 5px rgba(184,134,46,0.15), 0 8px 25px rgba(0,0,0,0.3);
+    overflow:hidden;
+    margin: 0 auto 1.4rem;
+  }
+  .modal-photo img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+  .modal-message{
+    font-size:1rem;
+    line-height:1.85;
+    color: var(--ink-soft);
+    text-align:left;
+    background: rgba(255,255,255,0.25);
+    border-left: 3px solid var(--gold);
+    padding: 1rem 1.2rem;
+    border-radius: 4px;
+    margin-bottom: 1.3rem;
+  }
+
+  .modal-sign{
+    font-family:'Caveat', cursive;
+    font-size:1.25rem;
+    color: var(--red-x);
+    transform: rotate(-1deg);
+  }
+
+  /* Locked modal variant */
+  .modal-locked .modal-inner{ padding-top: 2.4rem; }
+  .lock-icon{
+    font-size:2.6rem;
+    margin-bottom:1rem;
+    filter: grayscale(0.3);
+  }
+  .locked-msg{
+    font-size:0.95rem;
+    color: var(--ink-soft);
+    line-height:1.7;
+  }
+  .locked-date{
+    font-family:'Caveat', cursive;
+    font-size:1.4rem;
+    color: var(--gold);
+    margin-top:0.6rem;
+  }
+
+  /* ═══════ FOOTER NOTE ═══════ */
+  .map-footer{
+    text-align:center;
+    margin-top: 2rem;
+    color: rgba(233,217,179,0.55);
+    font-size:0.82rem;
+    font-style: italic;
+  }
+
+  @media (max-width:480px){
+    .parchment{ padding: 2rem 1rem 2.6rem; }
+    .modal-inner{ padding: 0.5rem 1.3rem 2.2rem; }
+  }
+/* ═══════ LOCK SCREEN ═══════ */
+#lock-screen{
+  position: fixed; inset:0;
+  z-index: 500;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(46,92,110,0.5), transparent 55%),
+    linear-gradient(160deg, #1c3e4d 0%, #16323f 100%);
+  display:flex; align-items:center; justify-content:center;
+  padding: 1.5rem;
+  transition: opacity 0.6s ease, visibility 0.6s ease;
+}
+#lock-screen.unlocked{ opacity:0; visibility:hidden; pointer-events:none; }
+.lock-card{
+  background: var(--parchment);
+  border-radius: 10px;
+  max-width: 380px;
+  width:100%;
+  padding: 2.6rem 2rem 2.2rem;
+  text-align:center;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(90,60,20,0.25);
+  position:relative;
+}
+.lock-card::before{
+  content:''; position:absolute; inset:8px;
+  border: 2px solid rgba(90,60,20,0.18); border-radius:4px; pointer-events:none;
+}
+.lock-card .lock-emoji{ font-size: 2.6rem; margin-bottom: 0.9rem; }
+.lock-card h2{ font-family:'Pirata One', serif; font-size: clamp(1.5rem, 6vw, 1.9rem); color: var(--ink); margin-bottom: 0.5rem; }
+.lock-card p{ font-size: 0.92rem; color: var(--ink-soft); line-height: 1.6; margin-bottom: 1.5rem; }
+#lock-input{
+  width:100%; padding: 0.8rem 1rem; font-size: 1rem; font-family:'DM Sans', sans-serif;
+  border: 2px solid var(--parchment-deep); border-radius: 6px; background: rgba(255,255,255,0.5);
+  color: var(--ink); text-align:center; letter-spacing: 0.03em; margin-bottom: 1rem; outline:none;
+  transition: border-color 0.2s;
+}
+#lock-input:focus{ border-color: var(--gold); }
+#lock-btn{
+  width:100%; padding: 0.8rem 1rem; font-family:'Pirata One', serif; font-size: 1.05rem;
+  letter-spacing: 0.04em; background: var(--gold); color: var(--parchment); border:none;
+  border-radius: 6px; cursor:pointer; transition: background 0.2s, transform 0.15s;
+}
+#lock-btn:hover{ background: var(--gold-bright); transform: translateY(-1px); }
+#lock-error{ margin-top: 0.9rem; font-size: 0.85rem; color: var(--red-x); font-style: italic; min-height: 1.2em; opacity:0; transition: opacity 0.2s; }
+#lock-error.show{ opacity:1; }
+.lock-shake{ animation: shakeX 0.4s ease; }
+@keyframes shakeX{
+  0%,100%{ transform: translateX(0); }
+  20%{ transform: translateX(-8px); }
+  40%{ transform: translateX(8px); }
+  60%{ transform: translateX(-5px); }
+  80%{ transform: translateX(5px); }
+}
+</style>
+</head>
+<body>
+<div id="lock-screen">
+  <div class="lock-card" id="lock-card">
+    <div class="lock-emoji">🔐</div>
+    <h2>This map is private</h2>
+    <p>Enter the secret code to begin your journey.</p>
+    <input type="password" id="lock-input" placeholder="enter code" autocomplete="off" />
+    <button id="lock-btn" onclick="tryUnlock()">Unlock the map</button>
+    <p id="lock-error">That's not quite it — try again.</p>
+  </div>
+</div>
+
+<div class="ocean-bg"></div>
+
+<div class="map-wrap">
+  <div class="parchment">
+
+    <div class="map-header">
+      <span class="eyebrow">Our Journey, one stage at a time</span>
+      <h1>Our Treasure Map</h1>
+      <p class="sub">Seven teeny tiny steps stand between uss and our summer😍😍😍 Each one unlocks the night before you face it. I've left something for you at every stop habebty.</p>
+      <svg class="compass" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="46" fill="none" stroke="#b8862e" stroke-width="2" opacity="0.6"/>
+        <circle cx="50" cy="50" r="2" fill="#b8862e"/>
+        <path d="M50 8 L56 50 L50 92 L44 50 Z" fill="#a23b2e" opacity="0.85"/>
+        <path d="M8 50 L50 44 L92 50 L50 56 Z" fill="#5c4530" opacity="0.6"/>
+        <text x="50" y="20" text-anchor="middle" font-size="9" fill="#3b2a1a" font-family="DM Sans">N</text>
+      </svg>
+    </div>
+
+    <!-- ═══ TRAIL SVG — nodes injected by JS ═══ -->
+    <svg class="trail-svg" id="trail-svg" viewBox="0 0 640 1180" xmlns="http://www.w3.org/2000/svg"></svg>
+
+  </div>
+
+  <p class="map-footer">✦ click an unlocked marker to read your message ✦</p>
+</div>
+
+<!-- ═══════ MODAL ═══════ -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-card" id="modal-card">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-inner" id="modal-inner"><!-- injected --></div>
+  </div>
+</div>
+
+<script>
+const SITE_PASSWORD = "hJXZPxF8IWF2";
+
+function tryUnlock(){
+  const input = document.getElementById('lock-input');
+  const lockScreen = document.getElementById('lock-screen');
+  const lockCard = document.getElementById('lock-card');
+  const errorMsg = document.getElementById('lock-error');
+
+  if (input.value === SITE_PASSWORD){
+    sessionStorage.setItem('mapUnlocked', 'true');
+    lockScreen.classList.add('unlocked');
+  } else {
+    errorMsg.classList.add('show');
+    lockCard.classList.remove('lock-shake');
+    void lockCard.offsetWidth;
+    lockCard.classList.add('lock-shake');
+    input.value = '';
+    input.focus();
+  }
+}
+
+document.getElementById('lock-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') tryUnlock();
+});
+
+if (sessionStorage.getItem('mapUnlocked') === 'true'){
+  document.getElementById('lock-screen').classList.add('unlocked');
+}
+/* ════════════════════════════════════════════════════════════
+   STAGE DATA — edit messages, dates, photos here anytime
+   ════════════════════════════════════════════════════════════ */
+const STAGES = [
+  {
+    num: 1,
+    subject: "Deen and Mwatna",
+    examDate: "2026-06-21",
+    unlockDate: "2026-06-20",
+    photo: "https://i.ibb.co/yn1CsCwk/1.jpg",
+    title: "First stop on the map.",
+    message: `Habibet albe men gowaa enty 3arfa enena Fi Akher goz2 men re7letna?🥰🥰 re7letna Ely kanet fiha 7arfeyan kol 7aga mmken tetkhayeliha w ma3zalek ya albe Here we are, a3deen sawa wenty Fi 7odny w enty betkamely Youm wara Youm wenty bte3mely msh bas helw aweeee, da Raw2et El Raw3a bgdd❤️❤️❤️❤️<br><br> lw Fakra keda men 7awalyyy 10 4hoor kont a3ed m3aky keda w ba2olek en Our Journey di han2adiha kolaha sawa Fakra? adina aho Fi awakher re7letna Ely bardo han2adiha sawa w absetek w adala3ek fiha🥰🥰❤️❤️❤️<br><br>
+Enty 7a2i2y ya albe El Khadem El Ameen Ely Rabena ye2dar yediky 7aga w enty teb2y ameena fiha w mas2ola w te3mely El 7aga Fi men kol albek. Enty 3malty Helw awe awe awe ya roh albe Fi kol 7aga w mahma kan Fi wa2t msh adra fih enty 7awelty w fdelty t7awly w bgd mafish a7la men keda🤗🤗 w msh motakhayela 2ad eh Rabena shayef t3abek tool El Fatra di bgd tool El 4hoor w mafish youm wa7ed fat gheir w Howa shayef t3abek w bey2olek 2ad eh Howa Fakhoor beekyy❤️❤️❤️❤️<br><br>
+Ana 3aref en Bokra Lesa El Deen w El mwatna bas Bensakhan sawa bel Sahl 3l4an ne2ata3 El denya Fi Ely gyyy😍😍😍😍
+Khaly balek this is Our first Stage lesaa fa Estany ba2a 3l4an hatezha2y meny Fi El Stages Ely gya🥰🥰 Hanro7 bokra ya albe sawa w n7el Wana masek eidekk w abl ay 7aga nershem El Saleeb w nsaly l Rabena w ana wase2 en Howa haymed eido Fi kol 7aga w ykamel kol 7aga bte3meliha ya albe❤️❤️❤️❤️❤️<br><br>
+Ana Bahebek aweeeeeeeeee ya ashtar katkoti fel denyaaaa❤️❤️❤️❤️ Ana Fakhoor beeky ya Mariz ya Habebty Fakhoor beeky aktar men ngom El sama kolohom bgd❤️❤️❤️❤️
+I am Sooooo Proud of You habebty, Always and Forever❤️❤️❤️❤️<br><br>
+    «الرَّبُّ نُورِي وَخَلاَصِي، مِمَّنْ أَخَافُ؟ الرَّبُّ حِصْنُ حَيَاتِي، مِمَّنْ أَرْتَعِبُ؟»
+(مزمور 27: 1)`,
+    sign: "— you've got this Marouzty, I Love You"
+  },
+  {
+    num: 2,
+    subject: "French",
+    examDate: "2026-06-23",
+    unlockDate: "2026-06-22",
+    photo: "https://i.ibb.co/MDvX1s2s/2.jpg",
+    title: "Onward to stage two.",
+    message: `Habibet albe men gowaa enty 3arfa en kol youm bey3ady men 3omrena e7na keda ben2arab enena neb2a ma3 b3d sawa w n3esh 7iatna sawa?🥰🥰🥰🥰🥰 bfakar fel mawdo3 da awe kteeer. w kman bfakar Fi en na2es Ayam w neb2a a3deen fel agaza sawa ana wenty w mabsoten awee w ne3mel kol El 7gat Ely b2alna 4hoor bnetkalem 3aleha w netfarag 3la mosalsalat w movies w kol 7agaaa🥰🥰😍😍😍😍<br><br>
+betfakary enty kman Fi da sahh?🤗🤗 Hanet awe enena ne3mel kol da sawa w afdal absetek w adala3ek Zay ma ana ba3mel daiman bas ne3mel kol Ely nefsena fihh mman🥰🥰🥰<br><br>
+Bokra 3andena madet El Français Ely tab3an tab3ann ana lebleb fiha (maarafsh gheir gomla wa7da: Je Suis Baguette)😎😎😎<br> ana wase2 gedannnn enk bokra hate3mely helw aweee ya roh albe (msh helw zayy laaa El helw Ely bgd Ely Howa Raw3et El Raw3aa)😍😍❤️❤️❤️❤️❤️
+Wase2 fiky awe ya hayaty bgd w Hankhosh Zay kol emt7an Wana masek eidek w n7el kol 7aga sawa😘😘😘 w eid rabena abl eidek ya hayaty w ykamel ya habebty❤️❤️❤️❤️❤️<br><br>
+Small Daily Reminder: I am So Proud of you Baby Girl<br><br> «إِنْ كَانَ اللهُ مَعَنَا، فَمَنْ عَلَيْنَا؟»
+(رومية 8: 31) <br> «مُلْقِينَ كُلَّ هَمِّكُمْ عَلَيْهِ، لأَنَّهُ هُوَ يَعْتَنِي بِكُمْ.»
+(بطرس الأولى 5: 7)`,
+    sign: "Bahebak ya amar enta"
+  },
+  {
+    num: 3,
+    subject: "Aaraby",
+    examDate: "2026-06-28",
+    unlockDate: "2026-06-27",
+    photo: "https://i.ibb.co/tPHkgmHP/3.jpg",
+    title: "Halfway-ish, and still going.",
+    message: `Marouzty ana wase2 enk hate3mely raw3a aweee w lesa han7aky sawa kteeeer belel`,
+    sign: "— in your corner"
+  },
+  {
+    num: 4,
+    subject: "Chemya",
+    examDate: "2026-07-02",
+    unlockDate: "2026-07-01",
+    photo: "https://i.ibb.co/pBQ961n6/4.jpg",
+    title: "The middle stretch.",
+    message: `Chemya it is, mota7ames no3od sawa belel w adala3ek w ne7aky sawaaaaa`,
+    sign: "— still here, still proud"
+  },
+  {
+    num: 5,
+    subject: "English",
+    examDate: "2026-07-05",
+    unlockDate: "2026-07-04",
+    photo: "https://i.ibb.co/nqYfn4tz/5.jpg",
+    title: "Five down the line.",
+    message: `you don't know how much i am proud of you literally bgddd`,
+    sign: "— almost there"
+  },
+  {
+    num: 6,
+    subject: "Physia",
+    examDate: "2026-07-09",
+    unlockDate: "2026-07-08",
+    photo: "https://i.ibb.co/fzG8SnN3/6.jpg",
+    title: "So close now.",
+    message: `batetyyy hanet awe ya rohy 3la agazetna sawaaa mota7ames liha aweeee`,
+    sign: "— one more after this"
+  },
+  {
+    num: 7,
+    subject: "Bio",
+    examDate: "2026-07-16",
+    unlockDate: "2026-07-15",
+    photo: "https://i.ibb.co/zhpXH883/7.jpg",
+    title: "The final treasure.",
+    message: `3ayez a2olek kmeyet klammmmmm`,
+    sign: "— this is it, you made it"
+  }
+];
+
+/* ════════════════════════════════════════════════════════════
+   TESTING OVERRIDE — set to a date string to preview as if
+   "today" were that date, e.g. "2026-07-03". Set to null for
+   real behavior using the visitor's actual current date.
+   ════════════════════════════════════════════════════════════ */
+const DEBUG_TODAY = null;
+
+function getToday(){
+  if (DEBUG_TODAY) return new Date(DEBUG_TODAY + "T00:00:00");
+  const n = new Date();
+  return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+}
+
+function isUnlocked(stage){
+  const today = getToday();
+  const unlock = new Date(stage.unlockDate + "T00:00:00");
+  return today >= unlock;
+}
+
+function fmtDate(str){
+  const d = new Date(str + "T00:00:00");
+  return d.toLocaleDateString('en-US', { month:'long', day:'numeric' });
+}
+
+/* ════════════════════════════════════════════════════════════
+   BUILD TRAIL PATH — winding S-curve through 7 nodes
+   ════════════════════════════════════════════════════════════ */
+const svgNS = "http://www.w3.org/2000/svg";
+const trailSvg = document.getElementById('trail-svg');
+
+// Node positions: winding path, alternating left-right, top to bottom
+const positions = [
+  {x: 110, y: 80},
+  {x: 480, y: 190},
+  {x: 150, y: 330},
+  {x: 500, y: 460},
+  {x: 130, y: 610},
+  {x: 470, y: 760},
+  {x: 300, y: 940}
+];
+
+function buildPathD(pts){
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 1; i < pts.length; i++){
+    const prev = pts[i-1], cur = pts[i];
+    const midX = (prev.x + cur.x) / 2;
+    d += ` Q ${midX} ${prev.y}, ${midX} ${(prev.y+cur.y)/2} T ${cur.x} ${cur.y}`;
+  }
+  return d;
+}
+
+function el(tag, attrs, parent){
+  const e = document.createElementNS(svgNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function renderMap(){
+  trailSvg.innerHTML = '';
+
+  // dashed trail line
+  const pathD = buildPathD(positions);
+  el('path', {
+    d: pathD, fill:'none', stroke:'#8a6b3a', 'stroke-width':3,
+    'stroke-dasharray':'2 10', 'stroke-linecap':'round', opacity:0.55
+  }, trailSvg);
+
+  // small decorative doodles
+  const doodlePositions = [
+    {x: 300, y: 30, icon: '⛵'},
+    {x: 560, y: 330, icon: '🌴'},
+    {x: 60, y: 480, icon: '🐚'},
+    {x: 560, y: 610, icon: '⚓'},
+    {x: 50, y: 760, icon: '🦜'},
+  ];
+  doodlePositions.forEach(d => {
+    const t = el('text', {x:d.x, y:d.y, 'font-size':38, opacity:0.7, 'text-anchor':'middle'}, trailSvg);
+    t.textContent = d.icon;
+  });
+
+  STAGES.forEach((stage, i) => {
+    const pos = positions[i];
+    const unlocked = isUnlocked(stage);
+
+    const g = el('g', {class: `node-group ${unlocked ? '' : 'locked'}`, 'data-idx': i}, trailSvg);
+    g.addEventListener('click', () => openModal(i));
+
+    if (unlocked){
+      // pulsing ring (only most-recently-unlocked-but-not-yet-opened could pulse; keep simple: all unlocked pulse subtly)
+      el('circle', {
+        class:'node-pulse', cx:pos.x, cy:pos.y, r:26,
+        fill:'none', stroke: i===STAGES.length-1 ? '#d9a23b' : '#b8862e', 'stroke-width':2
+      }, g);
+    }
+
+    // X marks the spot for unlocked, circle/lock for locked
+    const circle = el('circle', {
+      class:'node-circle', cx:pos.x, cy:pos.y, r:24,
+      fill: unlocked ? (i===STAGES.length-1 ? '#d9a23b' : '#b8862e') : '#a8967a',
+      stroke: '#3b2a1a', 'stroke-width': 2
+    }, g);
+
+    if (unlocked){
+      // X mark
+      const xOff = 8;
+      el('line', {x1:pos.x-xOff, y1:pos.y-xOff, x2:pos.x+xOff, y2:pos.y+xOff, stroke:'#3b2a1a', 'stroke-width':2.5, 'stroke-linecap':'round'}, g);
+      el('line', {x1:pos.x+xOff, y1:pos.y-xOff, x2:pos.x-xOff, y2:pos.y+xOff, stroke:'#3b2a1a', 'stroke-width':2.5, 'stroke-linecap':'round'}, g);
+    } else {
+      const lockText = el('text', {x:pos.x, y:pos.y+6, 'text-anchor':'middle', 'font-size':18}, g);
+      lockText.textContent = '🔒';
+    }
+
+    // number badge
+    const numBg = el('circle', {cx:pos.x+19, cy:pos.y-19, r:11, fill:'#3b2a1a'}, g);
+    const numTxt = el('text', {
+      class: `node-number ${unlocked?'':'locked-number'}`,
+      x:pos.x+19, y:pos.y-15, 'text-anchor':'middle'
+    }, g);
+    numTxt.textContent = stage.num;
+
+    // label
+    const labelY = pos.y + 42;
+    const label = el('text', {
+      class: `node-label ${unlocked?'':'locked-label'}`,
+      x:pos.x, y:labelY, 'text-anchor':'middle'
+    }, g);
+    label.textContent = stage.subject;
+
+    // date
+    const dateTxt = el('text', {
+      class:'node-date', x:pos.x, y:labelY+15, 'text-anchor':'middle'
+    }, g);
+    dateTxt.textContent = unlocked ? fmtDate(stage.examDate) : `unlocks ${fmtDate(stage.unlockDate)}`;
+  });
+}
+
+/* ════════════════════════════════════════════════════════════
+   MODAL
+   ════════════════════════════════════════════════════════════ */
+const overlay = document.getElementById('modal-overlay');
+const modalInner = document.getElementById('modal-inner');
+const modalCard = document.getElementById('modal-card');
+
+function openModal(i){
+  const stage = STAGES[i];
+  const unlocked = isUnlocked(stage);
+
+  if (unlocked){
+    modalCard.classList.remove('modal-locked');
+    modalInner.innerHTML = `
+      <span class="modal-eyebrow">stage ${stage.num} · ${stage.subject}</span>
+      <h2 class="modal-title">${stage.title}</h2>
+      <div class="modal-photo"><img src="${stage.photo}" alt="${stage.subject}"></div>
+      <div class="modal-message">${stage.message}</div>
+      <p class="modal-sign">${stage.sign}</p>
+    `;
+  } else {
+    modalCard.classList.add('modal-locked');
+    modalInner.innerHTML = `
+      <div class="lock-icon">🔒</div>
+      <h2 class="modal-title">Not yet Marouzty</h2>
+      <p class="locked-msg">El goz2 da lesa hayefta7 orayeb matkhomish <br>nemshiha ya albe wa7da wa7da</p>
+      <p class="locked-date">unlocks ${fmtDate(stage.unlockDate)}</p>
+    `;
+  }
+
+  overlay.classList.add('active');
+}
+
+function closeModal(){
+  overlay.classList.remove('active');
+}
+overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+renderMap();
+</script>
+</body>
+</html>
